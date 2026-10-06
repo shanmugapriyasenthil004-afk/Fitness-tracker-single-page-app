@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FitTrack</title>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--text:#1d2433;--mut:#6b7385;--pri:#16a34a;--bd:#e3e6ee;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12151c;--card:#1c212c;--text:#eef0f5;--mut:#9aa3b5;--pri:#34d399;--bd:#2c3342}}
+:root[data-theme="dark"]{--bg:#12151c;--card:#1c212c;--text:#eef0f5;--mut:#9aa3b5;--pri:#34d399;--bd:#2c3342}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:16px}
+nav{display:flex;gap:8px;margin:12px 0 18px;flex-wrap:wrap}
+nav a{padding:8px 14px;border-radius:20px;text-decoration:none;color:var(--mut);border:1px solid var(--bd);background:var(--card);font-size:14px}
+nav a.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;margin-bottom:12px}
+.big{font-size:28px;font-weight:700}.mut{color:var(--mut);font-size:13px}
+.bar{height:10px;background:var(--bd);border-radius:6px;overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;background:var(--pri)}
+.chart{display:flex;align-items:flex-end;gap:10px;height:140px;margin-top:10px}
+.col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;font-size:12px;color:var(--mut)}
+.col b{width:100%;background:var(--pri);border-radius:6px 6px 0 0;min-height:2px}
+label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
+input,select{width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--text);font-size:15px}
+button{padding:10px 16px;border:0;border-radius:8px;background:var(--pri);color:#fff;font-size:15px;cursor:pointer;margin-top:14px}
+button.x{background:none;color:#dc2626;margin:0;padding:4px 8px}
+.row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bd)}
+.row:last-child{border:0}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script>
+const { useState, useEffect } = React;
+const h = React.createElement;
+const RATE = { Running: 10, Cycling: 8, Walking: 4, Yoga: 3, Gym: 7, Swimming: 9 };
+const day = n => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+const seed = [
+  { id: 1, type: "Running", min: 30, cal: 300, date: day(0) },
+  { id: 2, type: "Yoga", min: 45, cal: 135, date: day(1) },
+  { id: 3, type: "Gym", min: 60, cal: 420, date: day(2) },
+  { id: 4, type: "Cycling", min: 40, cal: 320, date: day(4) },
+  { id: 5, type: "Walking", min: 50, cal: 200, date: day(5) },
+  { id: 6, type: "Swimming", min: 35, cal: 315, date: day(6) },
+];
+const GOAL = 300; // weekly minutes
+
+function load() {
+  try { const s = localStorage.getItem("fit"); if (s) return JSON.parse(s); } catch (e) {}
+  return seed;
+}
+
+function Dashboard({ items }) {
+  const days = [...Array(7)].map((_, i) => day(6 - i));
+  const per = days.map(d => items.filter(w => w.date === d).reduce((a, w) => a + w.min, 0));
+  const week = items.filter(w => days.includes(w.date));
+  const mins = week.reduce((a, w) => a + w.min, 0);
+  const cals = week.reduce((a, w) => a + w.cal, 0);
+  const max = Math.max(...per, 1);
+  const stat = (v, l) => h("div", { className: "card" }, h("div", { className: "big" }, v), h("div", { className: "mut" }, l));
+  return h("div", null,
+    h("div", { className: "grid" }, stat(week.length, "Workouts (7 days)"), stat(mins, "Minutes"), stat(cals, "Calories burned")),
+    h("div", { className: "card" },
+      h("b", null, "Weekly goal: " + mins + " / " + GOAL + " min"),
+      h("div", { className: "bar" }, h("i", { style: { width: Math.min(100, mins / GOAL * 100) + "%" } }))),
+    h("div", { className: "card" }, h("b", null, "Minutes per day"),
+      h("div", { className: "chart" }, days.map((d, i) =>
+        h("div", { className: "col", key: d }, h("span", null, per[i]),
+          h("b", { style: { height: per[i] / max * 100 + "%" } }),
+          h("span", null, new Date(d + "T00:00").toLocaleDateString("en", { weekday: "short" })))))));
+}
+
+function Log({ onAdd }) {
+  const [f, setF] = useState({ type: "Running", min: 30, date: day(0) });
+  const set = k => e => setF({ ...f, [k]: e.target.value });
+  const cal = Math.round(RATE[f.type] * (+f.min || 0));
+  const submit = () => {
+    if (!(+f.min > 0)) return;
+    onAdd({ id: Date.now(), type: f.type, min: +f.min, cal, date: f.date });
+  };
+  return h("div", { className: "card" }, h("b", null, "Log a workout"),
+    h("label", null, "Activity"),
+    h("select", { value: f.type, onChange: set("type") }, Object.keys(RATE).map(t => h("option", { key: t }, t))),
+    h("label", null, "Duration (minutes)"),
+    h("input", { type: "number", min: 1, value: f.min, onChange: set("min") }),
+    h("label", null, "Date"),
+    h("input", { type: "date", value: f.date, onChange: set("date") }),
+    h("p", { className: "mut" }, "Estimated calories: " + cal),
+    h("button", { onClick: submit }, "Save workout"));
+}
+
+function History({ items, onDel }) {
+  const [flt, setFlt] = useState("All");
+  const list = items.filter(w => flt === "All" || w.type === flt).sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+  return h("div", { className: "card" },
+    h("select", { value: flt, onChange: e => setFlt(e.target.value) }, ["All", ...Object.keys(RATE)].map(t => h("option", { key: t }, t))),
+    list.length === 0 && h("p", { className: "mut" }, "No workouts yet."),
+    list.map(w => h("div", { className: "row", key: w.id },
+      h("div", null, h("b", null, w.type), h("div", { className: "mut" }, w.date + " · " + w.min + " min · " + w.cal + " kcal")),
+      h("button", { className: "x", onClick: () => onDel(w.id) }, "Delete"))));
+}
+
+function App() {
+  const [items, setItems] = useState(load);
+  const [route, setRoute] = useState(location.hash.slice(1) || "dashboard");
+  useEffect(() => {
+    const f = () => setRoute(location.hash.slice(1) || "dashboard");
+    window.addEventListener("hashchange", f);
+    return () => window.removeEventListener("hashchange", f);
+  }, []);
+  useEffect(() => { try { localStorage.setItem("fit", JSON.stringify(items)); } catch (e) {} }, [items]);
+  const add = w => { setItems([...items, w]); location.hash = "history"; };
+  const del = id => setItems(items.filter(w => w.id !== id));
+  const tabs = [["dashboard", "Dashboard"], ["log", "Log workout"], ["history", "History"]];
+  return h("div", { className: "wrap" },
+    h("h2", { style: { margin: "8px 0 0" } }, "💪 FitTrack"),
+    h("nav", null, tabs.map(([k, l]) => h("a", { key: k, href: "#" + k, className: route === k ? "on" : "" }, l))),
+    route === "log" ? h(Log, { onAdd: add }) : route === "history" ? h(History, { items, onDel: del }) : h(Dashboard, { items }));
+}
+ReactDOM.createRoot(document.getElementById("root")).render(h(App));
+</script>
+</body>
+</html>
